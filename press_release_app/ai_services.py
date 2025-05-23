@@ -1,3 +1,5 @@
+import os # Import the os module
+
 # This file will contain functions for interacting with AI services,
 # initially a stub for Google Gemini.
 
@@ -8,10 +10,22 @@ def generate_text_with_gemini(prompt_text: str) -> str:
     """
     print(f"AINVOKE: Simulating Gemini API call with prompt: \"{prompt_text[:100]}...\"")
 
+    # Load the API key from an environment variable
+    GOOGLE_API_KEY = os.environ.get("GOOGLE_GEMINI_API_KEY")
+
+    if not GOOGLE_API_KEY:
+        print("Warning: GOOGLE_GEMINI_API_KEY environment variable not set. AI functionality will be limited/non-functional.")
+        # Even if the key is not set, we continue to return the stubbed response for now.
+        # In a real application, you might want to raise an error or handle this differently.
+
     # TODO: Replace with actual Google Gemini API client initialization
     # from google.generativeai import GenAI_Client (or similar)
-    # GOOGLE_API_KEY = "YOUR_API_KEY_HERE" # Load from environment variable in production
-    # gemini_client = GenAI_Client(api_key=GOOGLE_API_KEY)
+    # if GOOGLE_API_KEY:
+    #   gemini_client = GenAI_Client(api_key=GOOGLE_API_KEY)
+    # else:
+    #   # Handle missing API key - e.g. disable AI features, log error, etc.
+    #   pass
+
 
     # TODO: Construct the actual request payload for Gemini
     # For example, if using a specific model:
