@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Project: {{ project.project_name }}</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        h1, h2 { color: #333; }
+        a { color: #007bff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .container { max-width: 800px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .project-details, .press-releases, .actions { margin-bottom: 20px; }
+        .project-details p { margin: 5px 0; }
+        .project-details strong { color: #555; }
+        .press-release-list { list-style: none; padding: 0; }
+        .press-release-list li { margin-bottom: 5px; padding: 8px; border: 1px solid #eee; border-radius: 4px; }
+        .btn {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn:hover { background-color: #218838; }
+        .flashes { list-style: none; padding: 0; margin-bottom: 15px; }
+        .flashes li { padding: 10px; border-radius: 4px; }
+        .flashes .info { background-color: #e7f3fe; border-left: 6px solid #2196F3; color: #2196F3;}
+        .flashes .success { background-color: #d4edda; border-left: 6px solid #28a745; color: #155724;}
+        .flashes .error { background-color: #f8d7da; border-left: 6px solid #dc3545; color: #721c24;}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Project: {{ project.project_name }}</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <ul class=flashes>
+                {% for category, message in messages %}
+                    <li class="{{ category }}">{{ message }}</li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+
+        <div class="project-details">
+            <h2>Details</h2>
+            <p><strong>ID:</strong> {{ project.id }}</p>
+            <p><strong>Key Messages:</strong><br>{{ project.key_messages | nl2br if project.key_messages else 'N/A' }}</p>
+            <p><strong>Target Audience Keywords:</strong><br>{{ project.target_audience_keywords | nl2br if project.target_audience_keywords else 'N/A' }}</p>
+            <p><strong>User ID:</strong> {{ project.user_id }}</p>
+        </div>
+
+        <div class="actions">
+            <h2>Actions</h2>
+            <form method="POST" action="{{ url_for('generate_press_release_web', project_id=project.id) }}">
+                <button type="submit" class="btn">Generate Press Release (Stub)</button>
+            </form>
+        </div>
+
+        <div class="press-releases">
+            <h2>Associated Press Releases</h2>
+            {% if project.press_releases %}
+                <ul class="press-release-list">
+                    {% for pr in project.press_releases %}
+                        <li>ID: {{ pr.id }} - Status: {{ pr.status }}<br>Content: {{ pr.generated_content | truncate(100) }}</li>
+                    {% else %}
+                        <li>No press releases generated yet.</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No press releases generated yet.</p>
+            {% endif %}
+        </div>
+
+        <p><a href="{{ url_for('dashboard_web') }}">Back to Dashboard</a></p>
+    </div>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Projects Dashboard</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        a { color: #007bff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .container { max-width: 800px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .project-list { list-style: none; padding: 0; }
+        .project-list li { margin-bottom: 10px; padding: 10px; border: 1px solid #eee; border-radius: 4px; }
+        .actions { margin-bottom: 20px; }
+        .no-projects { color: #777; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Projects Dashboard</h1>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flashes">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="actions">
+            <a href="{{ url_for('create_new_project_web') }}">Create New Project</a>
+        </div>
+
+        {% if projects %}
+            <ul class="project-list">
+                {% for project in projects %}
+                    <li>
+                        <a href="{{ url_for('project_detail_web', project_id=project.id) }}">{{ project.project_name }}</a>
+                        (ID: {{ project.id }})
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="no-projects">No projects yet. <a href="{{ url_for('create_new_project_web') }}">Create one!</a></p>
+        {% endif %}
+    </div>
+</body>
+</html>
