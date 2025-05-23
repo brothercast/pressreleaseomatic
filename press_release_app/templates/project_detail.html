@@ -3,35 +3,88 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>Project: {{ project.project_name }}</title>
+    <title>{{ title if title else project.project_name }} - Press Release App</title>
     <style>
-        body { font-family: sans-serif; margin: 20px; }
-        h1, h2 { color: #333; }
+        body { font-family: sans-serif; margin: 0; background-color: #f4f4f4; color: #333; }
+        .navbar { background-color: #333; padding: 10px 20px; color: white; display: flex; justify-content: space-between; align-items: center; }
+        .navbar .nav-brand a { color: white; text-decoration: none; font-weight: bold; font-size: 1.2em; }
+        .navbar .nav-links a { color: white; text-decoration: none; margin-left: 15px; }
+        .navbar .nav-links a:hover { text-decoration: underline; }
+        .container { max-width: 800px; margin: 20px auto; padding: 20px; background-color: #fff; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2, h3 { color: #333; }
         a { color: #007bff; text-decoration: none; }
         a:hover { text-decoration: underline; }
-        .container { max-width: 800px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
-        .project-details, .press-releases, .actions { margin-bottom: 20px; }
-        .project-details p { margin: 5px 0; }
+        .section { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee;}
+        .section:last-child { border-bottom: none; }
+        .project-details p { margin: 5px 0; line-height: 1.6; }
         .project-details strong { color: #555; }
-        .press-release-list { list-style: none; padding: 0; }
-        .press-release-list li { margin-bottom: 5px; padding: 8px; border: 1px solid #eee; border-radius: 4px; }
-        .btn {
-            background-color: #28a745;
+        .list { list-style: none; padding: 0; }
+        .list li { 
+            margin-bottom: 10px; 
+            padding: 12px; 
+            border: 1px solid #eee; 
+            border-radius: 4px; 
+            background-color: #f9f9f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .item-actions a, .item-actions button {
+            margin-left: 8px;
+            padding: 5px 10px;
+            font-size: 0.9em;
+            border-radius: 3px;
+            text-decoration: none;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .item-actions .view-btn { background-color: #17a2b8; }
+        .item-actions .edit-btn { background-color: #ffc107; color: #333 !important; } /* Important for specificity */
+        .item-actions .delete-btn { background-color: #dc3545; }
+        
+        .btn, button[type="submit"] {
+            background-color: #007bff;
             color: white;
             padding: 10px 15px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            font-size: 16px;
+            text-decoration: none;
         }
-        .btn:hover { background-color: #218838; }
+        .btn-generate { background-color: #28a745; }
+        .btn-generate:hover { background-color: #218838; }
+        .btn:hover, button[type="submit"]:hover { opacity: 0.9; }
+        
         .flashes { list-style: none; padding: 0; margin-bottom: 15px; }
         .flashes li { padding: 10px; border-radius: 4px; }
-        .flashes .info { background-color: #e7f3fe; border-left: 6px solid #2196F3; color: #2196F3;}
+        .flashes .info { background-color: #e7f3fe; border-left: 6px solid #2196F3; color: #0c5460;}
         .flashes .success { background-color: #d4edda; border-left: 6px solid #28a745; color: #155724;}
         .flashes .error { background-color: #f8d7da; border-left: 6px solid #dc3545; color: #721c24;}
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
     </style>
 </head>
 <body>
+    <div class="navbar">
+        <div class="nav-brand">
+            <a href="{{ url_for('dashboard_web') }}">Press Release App</a>
+        </div>
+        <div class="nav-links">
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('dashboard_web') }}">Dashboard</a>
+                <a href="{{ url_for('publications_web') }}">My Publications</a>
+                <a href="{{ url_for('contacts_web') }}">My Contacts</a>
+                <a href="{{ url_for('logout_web') }}">Logout</a>
+            {% else %}
+                <a href="{{ url_for('login_web') }}">Login</a>
+                <a href="{{ url_for('register_web') }}">Register</a>
+            {% endif %}
+        </div>
+    </div>
+
     <div class="container">
         <h1>Project: {{ project.project_name }}</h1>
 
@@ -45,37 +98,94 @@
             {% endif %}
         {% endwith %}
 
-        <div class="project-details">
+        <div class="section project-details">
             <h2>Details</h2>
             <p><strong>ID:</strong> {{ project.id }}</p>
+            <p><strong>Author:</strong> {{ project.author.username }}</p>
             <p><strong>Key Messages:</strong><br>{{ project.key_messages | nl2br if project.key_messages else 'N/A' }}</p>
             <p><strong>Target Audience Keywords:</strong><br>{{ project.target_audience_keywords | nl2br if project.target_audience_keywords else 'N/A' }}</p>
-            <p><strong>User ID:</strong> {{ project.user_id }}</p>
         </div>
 
-        <div class="actions">
-            <h2>Actions</h2>
+        <div class="section actions">
+            <h2>Generate Press Release</h2>
             <form method="POST" action="{{ url_for('generate_press_release_web', project_id=project.id) }}">
-                <button type="submit" class="btn">Generate Press Release (Stub)</button>
+                <button type="submit" class="btn btn-generate">Generate New Press Release (AI)</button>
             </form>
         </div>
 
-        <div class="press-releases">
+        <div class="section press-releases">
             <h2>Associated Press Releases</h2>
-            {% if project.press_releases %}
-                <ul class="press-release-list">
-                    {% for pr in project.press_releases %}
-                        <li>ID: {{ pr.id }} - Status: {{ pr.status }}<br>Content: {{ pr.generated_content | truncate(100) }}</li>
-                    {% else %}
-                        <li>No press releases generated yet.</li>
+            {% if project.press_releases.all() %}
+                <ul class="list">
+                    {% for pr in project.press_releases | sort(attribute='id', reverse=True) %}
+                        <li>
+                            <div>
+                                <strong>ID:</strong> {{ pr.id }} - <strong>Status:</strong> {{ pr.status }}<br>
+                                <small>Created: {{ pr.created_at.strftime('%Y-%m-%d %H:%M') if pr.created_at else 'N/A' }} | 
+                                       Modified: {{ pr.last_modified.strftime('%Y-%m-%d %H:%M') if pr.last_modified else 'N/A' }}</small>
+                            </div>
+                            <div class="item-actions">
+                                <a href="{{ url_for('view_press_release_web', pr_id=pr.id) }}" class="view-btn">View</a>
+                                <a href="{{ url_for('edit_press_release_web', pr_id=pr.id) }}" class="edit-btn">Edit</a>
+                                <form method="POST" action="{{ url_for('delete_press_release_web', pr_id=pr.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this press release?');">
+                                    <button type="submit" class="delete-btn">Delete</button>
+                                </form>
+                            </div>
+                        </li>
                     {% endfor %}
                 </ul>
             {% else %}
-                <p>No press releases generated yet.</p>
+                <p>No press releases generated for this project yet.</p>
             {% endif %}
         </div>
 
-        <p><a href="{{ url_for('dashboard_web') }}">Back to Dashboard</a></p>
+        <div class="section target-contacts">
+            <h2>Target Contacts for this Project</h2>
+            <div class="form-section" style="background-color: #fff; padding:0; border:none;">
+                <h3>Add Contact to Project</h3>
+                {% if add_contact_form.contact.choices|length > 1 or (add_contact_form.contact.choices|length == 1 and add_contact_form.contact.choices[0][0] != '__None') %} {# Check if there are actual contacts to add #}
+                    <form method="POST" action="{{ url_for('project_add_contact_web', project_id=project.id) }}">
+                        {{ add_contact_form.hidden_tag() }}
+                        <div class="form-group">
+                            {{ add_contact_form.contact.label }}
+                            {{ add_contact_form.contact(class="form-control") }}
+                            {% if add_contact_form.contact.errors %}<ul class="errors">{% for error in add_contact_form.contact.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                        </div>
+                        <div class="form-group">
+                            {{ add_contact_form.submit(class="btn") }}
+                        </div>
+                    </form>
+                {% else %}
+                    <p>All your existing contacts are already added to this project, or you have no contacts defined yet. 
+                       Go to <a href="{{ url_for('contacts_web') }}">My Contacts</a> to add more.
+                    </p>
+                {% endif %}
+            </div>
+
+            <h3>Current Target Contacts</h3>
+            {% if project.target_contacts.all() %}
+                <ul class="list">
+                    {% for contact in project.target_contacts | sort(attribute='name') %}
+                        <li>
+                            <div>
+                                <strong>{{ contact.name }}</strong> ({{ contact.email }})
+                                {% if contact.role %}- {{ contact.role }}{% endif %}
+                                {% if contact.publication %}<br><em>Publication: {{ contact.publication.name }}</em>{% endif %}
+                            </div>
+                            <div class="item-actions">
+                                <form method="POST" action="{{ url_for('project_remove_contact_web', project_id=project.id, contact_id=contact.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to remove this contact from the project?');">
+                                    <button type="submit" class="delete-btn">Remove</button>
+                                </form>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No contacts have been added to this project yet.</p>
+            {% endif %}
+        </div>
+        <hr>
+        <p style="text-align: center;"><a href="{{ url_for('dashboard_web') }}">Back to Dashboard</a></p>
     </div>
 </body>
 </html>

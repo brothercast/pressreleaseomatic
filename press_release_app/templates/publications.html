@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>{{ title }} - Press Release App</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; background-color: #f4f4f4; color: #333; }
+        .navbar { background-color: #333; padding: 10px 20px; color: white; display: flex; justify-content: space-between; align-items: center; }
+        .navbar a { color: white; text-decoration: none; margin-left: 15px; }
+        .navbar a:hover { text-decoration: underline; }
+        .container { max-width: 900px; margin: 20px auto; padding: 20px; background-color: #fff; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #333; }
+        a { color: #007bff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .form-section { margin-bottom: 30px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px; background-color: #f9f9f9;}
+        .list-section ul { list-style: none; padding: 0; }
+        .list-section li { margin-bottom: 10px; padding: 10px; border: 1px solid #eee; border-radius: 4px; background-color: #fff; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="url"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea { min-height: 80px; }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn:hover { background-color: #0056b3; }
+        .alert { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+        .alert-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-danger { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .errors { list-style: none; padding: 0; margin: 5px 0 0 0; }
+        .errors li { color: red; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div>
+            <a href="{{ url_for('dashboard_web') }}">Press Release App</a>
+        </div>
+        <div>
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('dashboard_web') }}">Dashboard</a>
+                <a href="{{ url_for('publications_web') }}">My Publications</a>
+                <a href="{{ url_for('contacts_web') }}">My Contacts</a>
+                <a href="{{ url_for('logout_web') }}">Logout</a>
+            {% else %}
+                <a href="{{ url_for('login_web') }}">Login</a>
+                <a href="{{ url_for('register_web') }}">Register</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="container">
+        <h1>{{ title }}</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="form-section">
+            <h2>Add New Publication</h2>
+            <form method="POST" action="{{ url_for('publications_web') }}">
+                {{ form.hidden_tag() }}
+                <div class="form-group">
+                    {{ form.name.label }}
+                    {{ form.name(class="form-control", placeholder="e.g., Tech News Daily") }}
+                    {% if form.name.errors %}<ul class="errors">{% for error in form.name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.website.label }}
+                    {{ form.website(class="form-control", placeholder="e.g., https://www.technewsdaily.com") }}
+                    {% if form.website.errors %}<ul class="errors">{% for error in form.website.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.notes.label }}
+                    {{ form.notes(class="form-control", placeholder="e.g., Focuses on consumer tech, editor is Jane Doe.") }}
+                    {% if form.notes.errors %}<ul class="errors">{% for error in form.notes.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.submit(class="btn") }}
+                </div>
+            </form>
+        </div>
+
+        <div class="list-section">
+            <h2>Existing Publications</h2>
+            {% if publications %}
+                <ul>
+                    {% for pub in publications %}
+                        <li>
+                            <strong>{{ pub.name }}</strong>
+                            {% if pub.website %}(<a href="{{ pub.website }}" target="_blank">{{ pub.website }}</a>){% endif %}<br>
+                            <small>Notes: {{ pub.notes | nl2br if pub.notes else 'N/A' }}</small>
+                            {# Add edit/delete links here if needed in future #}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>You haven't added any publications yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

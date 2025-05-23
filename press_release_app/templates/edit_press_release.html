@@ -9,20 +9,20 @@
         .navbar { background-color: #333; padding: 10px 20px; color: white; display: flex; justify-content: space-between; align-items: center; }
         .navbar a { color: white; text-decoration: none; margin-left: 15px; }
         .navbar a:hover { text-decoration: underline; }
-        .container { max-width: 600px; margin: 20px auto; padding: 20px; background-color: #fff; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        h1 { color: #333; text-align: center; }
+        .container { max-width: 800px; margin: 20px auto; padding: 20px; background-color: #fff; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #333; }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="text"], textarea {
+        textarea, select {
             width: 100%;
             padding: 10px;
             border: 1px solid #ccc;
             border-radius: 4px;
             box-sizing: border-box;
         }
-        textarea { min-height: 100px; }
+        textarea { min-height: 250px; font-family: monospace; }
         .btn {
-            background-color: #007bff;
+            background-color: #28a745;
             color: white;
             padding: 10px 15px;
             border: none;
@@ -30,9 +30,10 @@
             cursor: pointer;
             font-size: 16px;
         }
-        .btn:hover { background-color: #0056b3; }
+        .btn:hover { background-color: #218838; }
         .alert-error { color: red; margin-bottom: 10px; background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; border-radius: 4px;}
-        .nav-links a { margin-left: 10px; }
+        .errors { list-style: none; padding: 0; margin: 5px 0 0 0; }
+        .errors li { color: red; font-size: 0.9em; }
     </style>
 </head>
 <body>
@@ -43,6 +44,7 @@
         <div>
             {% if current_user.is_authenticated %}
                 <a href="{{ url_for('dashboard_web') }}">Dashboard</a>
+                <a href="{{ url_for('project_detail_web', project_id=project.id) }}">Back to Project: {{ project.project_name }}</a>
                 <a href="{{ url_for('logout_web') }}">Logout</a>
             {% else %}
                 <a href="{{ url_for('login_web') }}">Login</a>
@@ -52,7 +54,7 @@
     </div>
 
     <div class="container">
-        <h1>{{ title }}</h1>
+        <h1>{{ title }} for Project: <a href="{{ url_for('project_detail_web', project_id=project.id) }}">{{ project.project_name }}</a></h1>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -64,22 +66,29 @@
             {% endif %}
         {% endwith %}
 
-        <form method="POST" action="{{ url_for('create_new_project_web') }}">
+        <form method="POST" action="{{ url_for('edit_press_release_web', pr_id=press_release.id) }}">
+            {{ form.hidden_tag() }}
             <div class="form-group">
-                <label for="project_name">Project Name:</label>
-                <input type="text" id="project_name" name="project_name" required value="{{ request.form.project_name if request.form else '' }}">
+                {{ form.generated_content.label }}
+                {{ form.generated_content(class="form-control", rows="15") }}
+                {% if form.generated_content.errors %}
+                    <ul class="errors">{% for error in form.generated_content.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
             </div>
             <div class="form-group">
-                <label for="key_messages">Key Messages:</label>
-                <textarea id="key_messages" name="key_messages">{{ request.form.key_messages if request.form else '' }}</textarea>
+                {{ form.status.label }}
+                {{ form.status(class="form-control") }}
+                {% if form.status.errors %}
+                    <ul class="errors">{% for error in form.status.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
             </div>
             <div class="form-group">
-                <label for="target_audience_keywords">Target Audience Keywords:</label>
-                <textarea id="target_audience_keywords" name="target_audience_keywords">{{ request.form.target_audience_keywords if request.form else '' }}</textarea>
+                {{ form.submit(class="btn") }}
             </div>
-            <button type="submit" class="btn">Create Project</button>
         </form>
-        <p style="text-align: center; margin-top: 20px;"><a href="{{ url_for('dashboard_web') }}">Back to Dashboard</a></p>
+        <hr>
+        <p><a href="{{ url_for('view_press_release_web', pr_id=press_release.id) }}">Cancel and View Press Release</a></p>
+        <p><a href="{{ url_for('project_detail_web', project_id=project.id) }}">Back to Project Details</a></p>
     </div>
 </body>
 </html>
