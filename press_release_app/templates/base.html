@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <title>{% block title %}PR Co-Pilot{% endblock %}</title>
+    {% block head_extra %}{% endblock %}
+    <style>
+        body { padding-top: 56px; /* Adjusted for fixed-top navbar */ }
+        .flashes-container { /* Container for flashes to ensure proper layout */
+            position: fixed; /* Or absolute, depending on desired behavior */
+            top: 60px; /* Below navbar */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1050; /* Above most other content */
+            width: auto; /* Or a max-width */
+            min-width: 300px; /* Minimum width for readability */
+        }
+        .flashes .alert { margin-bottom: 0.5rem; } /* Spacing between multiple flash messages */
+        footer { padding: 2rem 0; margin-top: 2rem; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top"> {# Added fixed-top #}
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('dashboard_web') }}">PR Co-Pilot</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {% if current_user.is_authenticated %}
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard_web') }}">Dashboard</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('publications_web') }}">My Publications</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('contacts_web') }}">My Contacts</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('logout_web') }}">Logout ({{ current_user.username }})</a></li>
+                    {% else %}
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('login_web') }}">Login</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('register_web') }}">Register</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    {# Container for flashed messages, outside the main content flow for fixed positioning #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flashes-container">
+                <ul class="flashes list-unstyled"> {# Using list-unstyled to remove default list styling #}
+                {% for category, message in messages %}
+                    {% set alert_class = 'alert-secondary' %} {# Default class #}
+                    {% if category == 'success' %}
+                        {% set alert_class = 'alert-success' %}
+                    {% elif category == 'danger' or category == 'error' %} {# Handling 'error' as 'danger' #}
+                        {% set alert_class = 'alert-danger' %}
+                    {% elif category == 'info' %}
+                        {% set alert_class = 'alert-info' %}
+                    {% elif category == 'warning' %}
+                        {% set alert_class = 'alert-warning' %}
+                    {% endif %}
+                    <li class="alert {{ alert_class }} alert-dismissible fade show shadow-sm" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </li>
+                {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <main class="container mt-4"> {# This mt-4 might need adjustment if flashes are too close #}
+        {# Content block will not contain flashes anymore as they are positioned globally #}
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="container text-center text-muted">
+        <p>&copy; PR Co-Pilot {{ now.year if now else '2023' }}</p> {# Added dynamic year #}
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    {% block scripts_extra %}{% endblock %}
+</body>
+</html>

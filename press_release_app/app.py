@@ -1,15 +1,15 @@
 from flask import Flask, request, jsonify, render_template, redirect, url_for, flash
-from models import db, User, Project, PressRelease, Publication, Contact, TONE_CHOICES, STYLE_CHOICES
-from press_release_app.ai_services import generate_text_with_gemini, clarify_story_with_gemini, refine_text_with_gemini # Added refine_text_with_gemini
+from .models import db, User, Project, PressRelease, Publication, Contact, TONE_CHOICES, STYLE_CHOICES # Relative import
+from .ai_services import generate_text_with_gemini, clarify_story_with_gemini, refine_text_with_gemini # Relative import
 
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
 from flask_bcrypt import Bcrypt
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, BooleanField, TextAreaField, SelectField, HiddenField # Added HiddenField
+from wtforms import StringField, PasswordField, SubmitField, BooleanField, TextAreaField, SelectField, HiddenField 
 from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, Optional
 from wtforms_sqlalchemy.fields import QuerySelectField 
 from sqlalchemy.exc import IntegrityError 
-from datetime import datetime
+from datetime import datetime 
 
 app = Flask(__name__)
 
@@ -28,6 +28,11 @@ login_manager.login_message_category = 'info'
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+# Context processor to make datetime available to all templates
+@app.context_processor
+def inject_now():
+    return {'now': datetime.utcnow()}
 
 # --- Forms ---
 class RegistrationForm(FlaskForm):
@@ -120,7 +125,7 @@ class TextRefinementForm(FlaskForm):
         ('simplify_jargon', 'Simplify Jargon')
     ]
     refinement_type = SelectField('Refinement Type', choices=refinement_type_choices, validators=[DataRequired()])
-    original_pr_content = HiddenField('Original PR Content') # To provide context
+    original_pr_content = HiddenField('Original PR Content') 
     submit = SubmitField('Get Refinement Suggestion')
 
 
@@ -133,7 +138,6 @@ def home_redirect():
     return redirect(url_for('login_web'))
 
 # --- Web UI Routes ---
-# ... (Authentication, Project, Press Release CRUD, Publication, Contact Management Web UI routes from previous tasks) ...
 @app.route('/ui/register', methods=['GET', 'POST'])
 def register_web():
     if current_user.is_authenticated: return redirect(url_for('dashboard_web'))
@@ -197,8 +201,7 @@ def edit_project_web(project_id):
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     form = ProjectForm(obj=project) 
     if form.validate_on_submit():
-        form.populate_obj(project) # Updates project object with form data
-        # project.last_modified = datetime.utcnow() # Handled by onupdate in model
+        form.populate_obj(project) 
         db.session.commit()
         flash(f'Project "{project.project_name}" updated successfully!', 'success')
         return redirect(url_for('project_detail_web', project_id=project.id))
@@ -268,22 +271,16 @@ def generate_press_release_web(project_id):
     flash(flash_msg, "success" if status == "draft_from_ai" else "danger")
     return redirect(url_for('project_detail_web', project_id=project.id))
 
-@app.route('/ui/press_releases/<int:pr_id>', methods=['GET']) # Added refinement_suggestion parameter
+@app.route('/ui/press_releases/<int:pr_id>', methods=['GET']) 
 @login_required
-def view_press_release_web(pr_id, refinement_suggestion=None):
+def view_press_release_web(pr_id): 
     press_release = PressRelease.query.get_or_404(pr_id)
     if press_release.project.user_id != current_user.id: return redirect(url_for('dashboard_web')) 
-    
-    # Initialize the form here to pass to the template
     refinement_form = TextRefinementForm(original_pr_content=press_release.generated_content)
-    
-    # If a suggestion is passed (e.g. after a POST to refine_text_action_web), use it
-    # This comes from the refine_text_action_web route re-rendering this template.
-    # Note: 'refinement_suggestion' is passed directly by `refine_text_action_web` when re-rendering.
-    
+    refinement_suggestion = request.args.get('refinement_suggestion', None)
     return render_template('view_press_release.html', press_release=press_release, project=press_release.project, 
                            title=f"View PR: {press_release.id}", refinement_form=refinement_form, 
-                           refinement_suggestion=request.args.get('refinement_suggestion', None)) # Or passed directly
+                           refinement_suggestion=refinement_suggestion)
 
 @app.route('/ui/press_releases/<int:pr_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -312,38 +309,24 @@ def delete_press_release_web(pr_id):
 @login_required
 def refine_text_action_web(pr_id):
     press_release = PressRelease.query.get_or_404(pr_id)
-    project = Project.query.filter_by(id=press_release.project_id, user_id=current_user.id).first_or_404() # Verify ownership
-
-    form = TextRefinementForm() # Process this form
-    refinement_suggestion = None
-
+    if press_release.project.user_id != current_user.id: return redirect(url_for('dashboard_web')) 
+    form = TextRefinementForm() 
+    refinement_suggestion_text = None 
     if form.validate_on_submit():
         text_to_refine = form.text_to_refine_manual.data
         refinement_type = form.refinement_type.data
-        original_context = form.original_pr_content.data # This is the full PR text from hidden field
-
-        refinement_suggestion = refine_text_with_gemini(text_to_refine, refinement_type, original_context)
-        
-        if refinement_suggestion.startswith("Error:") or refinement_suggestion.startswith("ERROR:"):
-            flash(f"AI Refinement Error: {refinement_suggestion}", 'danger')
-            refinement_suggestion = None # Don't show error as a suggestion
+        original_context = form.original_pr_content.data 
+        refinement_suggestion_text = refine_text_with_gemini(text_to_refine, refinement_type, original_context)
+        if refinement_suggestion_text.startswith("Error:") or refinement_suggestion_text.startswith("ERROR:"):
+            flash(f"AI Refinement Error: {refinement_suggestion_text}", 'danger')
+            refinement_suggestion_text = None 
         else:
             flash("AI refinement suggestion received.", 'info')
-    else: # Form validation failed
+    else: 
         for field, errors in form.errors.items():
-            for error in errors:
-                flash(f"Error in '{getattr(form, field).label.text}': {error}", 'danger')
-    
-    # Re-render the view page, passing the suggestion (or None)
-    # The refinement_form needs to be re-initialized for the template context
-    # if we want to preserve its state on re-render, but for now, a new one is fine.
-    new_refinement_form = TextRefinementForm(original_pr_content=press_release.generated_content)
-    return render_template('view_press_release.html', press_release=press_release, project=project,
-                           title=f"View PR: {press_release.id}", refinement_form=new_refinement_form,
-                           refinement_suggestion=refinement_suggestion)
+            for error in errors: flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
+    return redirect(url_for('view_press_release_web', pr_id=pr_id, refinement_suggestion=refinement_suggestion_text))
 
-
-# ... (Publication and Contact Web UI routes are fine) ...
 @app.route('/ui/publications', methods=['GET', 'POST'])
 @login_required
 def publications_web():
@@ -410,39 +393,9 @@ def project_remove_contact_web(project_id, contact_id):
         flash(f"Contact '{contact_to_remove.name}' was not found in project '{project.project_name}'.", 'warning')
     return redirect(url_for('project_detail_web', project_id=project.id))
 
+
 # --- API Endpoints ---
 # ... (All API Endpoints from previous tasks are assumed to be here and correct) ...
-# ... (Adding the new API endpoint for text refinement below) ...
-
-@app.route('/api/press_releases/<int:pr_id>/refine_text_selection', methods=['POST'])
-@login_required
-def refine_text_selection_api(pr_id):
-    press_release = PressRelease.query.get_or_404(pr_id)
-    # Verify user ownership through the parent project
-    project = Project.query.filter_by(id=press_release.project_id, user_id=current_user.id).first_or_404()
-
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "Invalid JSON payload"}), 400
-
-    selected_text = data.get('selected_text')
-    refinement_type = data.get('refinement_type')
-    original_content = data.get('original_content') # Optional, full PR content for context
-
-    if not selected_text or not refinement_type:
-        return jsonify({"error": "Missing 'selected_text' or 'refinement_type'"}), 400
-    
-    allowed_refinement_types = ['concise', 'alternative_phrasing', 'simplify_jargon']
-    if refinement_type not in allowed_refinement_types:
-        return jsonify({"error": f"Invalid 'refinement_type'. Must be one of: {', '.join(allowed_refinement_types)}"}), 400
-
-    suggestion = refine_text_with_gemini(selected_text, refinement_type, original_content)
-
-    if suggestion.startswith("Error:") or suggestion.startswith("ERROR:"):
-        return jsonify({"error": "AI refinement service failed", "details": suggestion}), 500
-        
-    return jsonify({"suggestion": suggestion}), 200
-
 
 if __name__ == '__main__':
     app.run(debug=True)

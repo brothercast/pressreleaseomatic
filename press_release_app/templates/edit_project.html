@@ -1,134 +1,108 @@
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>{{ title }} - Press Release App</title>
-    <style>
-        body { font-family: sans-serif; margin: 0; background-color: #f4f4f4; color: #333; }
-        .navbar { background-color: #333; padding: 10px 20px; color: white; display: flex; justify-content: space-between; align-items: center; }
-        .navbar a { color: white; text-decoration: none; margin-left: 15px; }
-        .navbar a:hover { text-decoration: underline; }
-        .container { max-width: 700px; margin: 20px auto; padding: 20px; background-color: #fff; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        h1, h2 { color: #333; text-align: center; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="text"], textarea, select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        textarea { min-height: 80px; }
-        .btn {
-            background-color: #28a745; /* Green for save/update */
-            color: white;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        .btn:hover { background-color: #218838; }
-        .alert { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
-        .alert-danger { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        .errors { list-style: none; padding: 0; margin: 5px 0 0 0; }
-        .errors li { color: red; font-size: 0.9em; }
-        .section-title { margin-top: 25px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #eee;}
-    </style>
-</head>
-<body>
-    <div class="navbar">
-        <div><a href="{{ url_for('dashboard_web') }}">Press Release App</a></div>
-        <div>
-            {% if current_user.is_authenticated %}
-                <a href="{{ url_for('dashboard_web') }}">Dashboard</a>
-                <a href="{{ url_for('logout_web') }}">Logout</a>
-            {% else %}
-                <a href="{{ url_for('login_web') }}">Login</a>
-                <a href="{{ url_for('register_web') }}">Register</a>
-            {% endif %}
-        </div>
-    </div>
+{% extends "base.html" %}
 
-    <div class="container">
-        <h1>{{ title }}</h1>
+{% block title %}{{ title }} - PR Co-Pilot{% endblock %}
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        <form method="POST" action="{{ url_for('edit_project_web', project_id=project.id) }}">
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-7"> {# Adjusted column for potentially wider form #}
+        <h1 class="mb-4 text-center">{{ title }}</h1>
+        
+        <form method="POST" action="{{ url_for('edit_project_web', project_id=project.id) }}" novalidate>
             {{ form.hidden_tag() }}
             
-            <h2 class="section-title">Basic Project Information</h2>
-            <div class="form-group">
-                {{ form.project_name.label }}
-                {{ form.project_name(class="form-control") }}
-                {% if form.project_name.errors %}<ul class="errors">{% for error in form.project_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Basic Project Information</h2>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        {{ form.project_name.label(class="form-label") }}
+                        {{ form.project_name(class="form-control" + (" is-invalid" if form.project_name.errors else "")) }}
+                        {% if form.project_name.errors %}
+                            <div class="invalid-feedback">{% for error in form.project_name.errors %}<span>{{ error }}</span>{% endfor %}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.tone.label(class="form-label") }}
+                            {{ form.tone(class="form-select" + (" is-invalid" if form.tone.errors else "")) }}
+                            {% if form.tone.errors %}
+                                <div class="invalid-feedback">{% for error in form.tone.errors %}<span>{{ error }}</span>{% endfor %}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.style.label(class="form-label") }}
+                            {{ form.style(class="form-select" + (" is-invalid" if form.style.errors else "")) }}
+                            {% if form.style.errors %}
+                                <div class="invalid-feedback">{% for error in form.style.errors %}<span>{{ error }}</span>{% endfor %}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div class="form-group">
-                {{ form.tone.label }}
-                {{ form.tone(class="form-control") }}
-                {% if form.tone.errors %}<ul class="errors">{% for error in form.tone.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-            </div>
-            <div class="form-group">
-                {{ form.style.label }}
-                {{ form.style(class="form-control") }}
-                {% if form.style.errors %}<ul class="errors">{% for error in form.style.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Story Clarification Inputs</h2>
+                    <small class="form-text text-muted">Provide or update these details to help the AI generate a focused "Core Narrative Brief" for your project.</small>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        {{ form.main_takeaway_input.label(class="form-label") }}
+                        {{ form.main_takeaway_input(class="form-control" + (" is-invalid" if form.main_takeaway_input.errors else ""), rows="3") }}
+                        {% if form.main_takeaway_input.errors %}<div class="invalid-feedback">{% for error in form.main_takeaway_input.errors %}<span>{{ error }}</span>{% endfor %}</div>{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.primary_audience_input.label(class="form-label") }}
+                        {{ form.primary_audience_input(class="form-control" + (" is-invalid" if form.primary_audience_input.errors else ""), rows="2") }}
+                        {% if form.primary_audience_input.errors %}<div class="invalid-feedback">{% for error in form.primary_audience_input.errors %}<span>{{ error }}</span>{% endfor %}</div>{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.audience_benefit_input.label(class="form-label") }}
+                        {{ form.audience_benefit_input(class="form-control" + (" is-invalid" if form.audience_benefit_input.errors else ""), rows="3") }}
+                        {% if form.audience_benefit_input.errors %}<div class="invalid-feedback">{% for error in form.audience_benefit_input.errors %}<span>{{ error }}</span>{% endfor %}</div>{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.differentiator_input.label(class="form-label") }}
+                        {{ form.differentiator_input(class="form-control" + (" is-invalid" if form.differentiator_input.errors else ""), rows="2") }}
+                        {% if form.differentiator_input.errors %}<div class="invalid-feedback">{% for error in form.differentiator_input.errors %}<span>{{ error }}</span>{% endfor %}</div>{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.desired_outcome_input.label(class="form-label") }}
+                        {{ form.desired_outcome_input(class="form-control" + (" is-invalid" if form.desired_outcome_input.errors else ""), rows="2") }}
+                        {% if form.desired_outcome_input.errors %}<div class="invalid-feedback">{% for error in form.desired_outcome_input.errors %}<span>{{ error }}</span>{% endfor %}</div>{% endif %}
+                    </div>
+                </div>
             </div>
             
-            <h2 class="section-title">Content Inputs</h2>
-            <p><small>Update details for AI-driven "Core Narrative Brief" generation, or "Key Messages" and "Target Audience Keywords" for direct press release generation.</small></p>
-
-            <div class="form-group">
-                {{ form.main_takeaway_input.label }} (For Story Brief)
-                {{ form.main_takeaway_input(class="form-control", rows="2") }}
-            </div>
-            <div class="form-group">
-                {{ form.primary_audience_input.label }} (For Story Brief)
-                {{ form.primary_audience_input(class="form-control") }}
-            </div>
-            <div class="form-group">
-                {{ form.audience_benefit_input.label }} (For Story Brief)
-                {{ form.audience_benefit_input(class="form-control", rows="2") }}
-            </div>
-            <div class="form-group">
-                {{ form.differentiator_input.label }} (For Story Brief)
-                {{ form.differentiator_input(class="form-control", rows="2") }}
-            </div>
-            <div class="form-group">
-                {{ form.desired_outcome_input.label }} (For Story Brief)
-                {{ form.desired_outcome_input(class="form-control") }}
-            </div>
-            
-            <hr style="margin: 20px 0;">
-
-            <div class="form-group">
-                {{ form.key_messages.label }} (Legacy - if Story Brief inputs are not used)
-                {{ form.key_messages(class="form-control", rows="3") }}
-                {% if form.key_messages.errors %}<ul class="errors">{% for error in form.key_messages.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
-            </div>
-            <div class="form-group">
-                {{ form.target_audience_keywords.label }} (Legacy - if Story Brief inputs are not used)
-                {{ form.target_audience_keywords(class="form-control", rows="2") }}
-                {% if form.target_audience_keywords.errors %}<ul class="errors">{% for error in form.target_audience_keywords.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Legacy Content Inputs</h2>
+                     <small class="form-text text-muted">Use these if not providing detailed Story Clarification Inputs above. The AI will prioritize Story Clarification Inputs or a Core Narrative Brief if available.</small>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        {{ form.key_messages.label(class="form-label") }}
+                        {{ form.key_messages(class="form-control" + (" is-invalid" if form.key_messages.errors else ""), rows="3") }}
+                        {% if form.key_messages.errors %}<div class="invalid-feedback">{% for error in form.key_messages.errors %}<span>{{ error }}</span>{% endfor %}</div>{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.target_audience_keywords.label(class="form-label") }}
+                        {{ form.target_audience_keywords(class="form-control" + (" is-invalid" if form.target_audience_keywords.errors else ""), rows="2") }}
+                        {% if form.target_audience_keywords.errors %}<div class="invalid-feedback">{% for error in form.target_audience_keywords.errors %}<span>{{ error }}</span>{% endfor %}</div>{% endif %}
+                    </div>
+                </div>
             </div>
 
-            <div class="form-group" style="margin-top: 20px;">
-                {{ form.submit(class="btn") }}
+            <div class="d-grid mb-3">
+                {{ form.submit(class="btn btn-success btn-lg") }} {# Changed button color for update #}
             </div>
         </form>
-        <p style="text-align: center; margin-top: 20px;">
+        <div class="text-center mt-3">
             <a href="{{ url_for('project_detail_web', project_id=project.id) }}">Cancel and Back to Project Details</a><br>
-            <a href="{{ url_for('dashboard_web') }}">Back to Dashboard</a>
-        </p>
+            <a href="{{ url_for('dashboard_web') }}" class="mt-2 d-inline-block">Back to Dashboard</a>
+        </div>
     </div>
-</body>
-</html>
+</div>
+{% endblock %}
