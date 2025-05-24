@@ -1,14 +1,14 @@
 from flask import Flask, request, jsonify, render_template, redirect, url_for, flash
-from models import db, User, Project, PressRelease, Publication, Contact # Added Publication, Contact
-from press_release_app.ai_services import generate_text_with_gemini
+from models import db, User, Project, PressRelease, Publication, Contact, TONE_CHOICES, STYLE_CHOICES
+from press_release_app.ai_services import generate_text_with_gemini, clarify_story_with_gemini, refine_text_with_gemini # Added refine_text_with_gemini
 
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
 from flask_bcrypt import Bcrypt
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, BooleanField, TextAreaField, SelectField
+from wtforms import StringField, PasswordField, SubmitField, BooleanField, TextAreaField, SelectField, HiddenField # Added HiddenField
 from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, Optional
-from wtforms_sqlalchemy.fields import QuerySelectField # For selecting existing model objects
-from sqlalchemy.exc import IntegrityError # For handling unique constraint errors
+from wtforms_sqlalchemy.fields import QuerySelectField 
+from sqlalchemy.exc import IntegrityError 
 from datetime import datetime
 
 app = Flask(__name__)
@@ -39,13 +39,10 @@ class RegistrationForm(FlaskForm):
 
     def validate_username(self, username):
         user = User.query.filter_by(username=username.data).first()
-        if user:
-            raise ValidationError('That username is taken. Please choose a different one.')
-
+        if user: raise ValidationError('That username is taken. Please choose a different one.')
     def validate_email(self, email):
         user = User.query.filter_by(email=email.data).first()
-        if user:
-            raise ValidationError('That email is already in use. Please choose a different one.')
+        if user: raise ValidationError('That email is already in use. Please choose a different one.')
 
 class LoginForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
@@ -53,16 +50,33 @@ class LoginForm(FlaskForm):
     remember = BooleanField('Remember Me')
     submit = SubmitField('Login')
 
+class ProjectForm(FlaskForm): 
+    project_name = StringField('Project Name', validators=[DataRequired(), Length(max=100)])
+    key_messages = TextAreaField('Key Messages (Original)', validators=[Optional()])
+    target_audience_keywords = TextAreaField('Target Audience Keywords (Original)', validators=[Optional()])
+    main_takeaway_input = TextAreaField('Main Takeaway for Story Brief', validators=[Optional()])
+    primary_audience_input = TextAreaField('Primary Audience for Story Brief', validators=[Optional()])
+    audience_benefit_input = TextAreaField('Audience Benefit/Impact for Story Brief', validators=[Optional()])
+    differentiator_input = TextAreaField('Key Differentiator for Story Brief', validators=[Optional()])
+    desired_outcome_input = TextAreaField('Desired Outcome for Story Brief', validators=[Optional()])
+    tone = SelectField('Tone', choices=TONE_CHOICES, default='neutral', validators=[Optional()])
+    style = SelectField('Style', choices=STYLE_CHOICES, default='standard_pr', validators=[Optional()])
+    submit = SubmitField('Save Project')
+
+class StoryClarificationForm(FlaskForm): 
+    main_takeaway_input = TextAreaField('Main Takeaway', validators=[DataRequired()])
+    primary_audience_input = TextAreaField('Primary Audience', validators=[DataRequired()])
+    audience_benefit_input = TextAreaField('Why This Audience Should Care (Benefit/Impact)', validators=[DataRequired()])
+    differentiator_input = TextAreaField('Key Differentiator/Uniqueness', validators=[DataRequired()])
+    desired_outcome_input = TextAreaField('Desired Outcome of the Press Release', validators=[DataRequired()])
+    submit = SubmitField('Generate/Update Core Narrative Brief')
+
 class EditPressReleaseForm(FlaskForm):
     generated_content = TextAreaField('Content', validators=[DataRequired()])
     status_choices = [
-        ('draft', 'Draft'), 
-        ('draft_from_ai', 'Draft (from AI)'),
-        ('draft_from_stub_web', 'Draft (from Web Stub)'),
-        ('draft_from_stub_api', 'Draft (from API Stub)'),
-        ('generation_failed', 'Generation Failed'),
-        ('final_review', 'Final Review'), 
-        ('published', 'Published')
+        ('draft', 'Draft'), ('draft_from_ai', 'Draft (from AI)'),
+        ('draft_from_stub_web', 'Draft (from Web Stub)'), ('draft_from_stub_api', 'Draft (from API Stub)'),
+        ('generation_failed', 'Generation Failed'), ('final_review', 'Final Review'), ('published', 'Published')
     ]
     status = SelectField('Status', choices=status_choices, validators=[DataRequired()])
     submit = SubmitField('Save Changes')
@@ -80,37 +94,34 @@ class ContactForm(FlaskForm):
     name = StringField('Contact Name', validators=[DataRequired(), Length(max=100)])
     email = StringField('Email', validators=[DataRequired(), Email(), Length(max=120)])
     role = StringField('Role (Optional)', validators=[Optional(), Length(max=100)])
-    publication = QuerySelectField('Publication (Optional)', 
-                                 query_factory=publication_query_factory, 
-                                 get_label='name', 
-                                 allow_blank=True, 
-                                 blank_text='-- Select a Publication --',
-                                 validators=[Optional()])
+    publication = QuerySelectField('Publication (Optional)', query_factory=publication_query_factory, 
+                                 get_label='name', allow_blank=True, blank_text='-- Select a Publication --', validators=[Optional()])
     notes = TextAreaField('Notes (Optional)')
     submit = SubmitField('Save Contact')
-
-    def __init__(self, *args, **kwargs):
-        super(ContactForm, self).__init__(*args, **kwargs)
-        self._obj = kwargs.get('obj') 
-
+    def __init__(self, *args, **kwargs): super(ContactForm, self).__init__(*args, **kwargs); self._obj = kwargs.get('obj') 
     def validate_email(self, email_field): 
-        query = Contact.query.filter_by(email=email_field.data) # Check global uniqueness for Contact email
-        if self._obj and hasattr(self._obj, 'id'): 
-            query = query.filter(Contact.id != self._obj.id)
-        existing_contact = query.first()
-        if existing_contact:
-            raise ValidationError('This email address is already in use globally by another contact.')
+        query = Contact.query.filter_by(email=email_field.data) 
+        if self._obj and hasattr(self._obj, 'id'): query = query.filter(Contact.id != self._obj.id)
+        if query.first(): raise ValidationError('This email address is already in use globally.')
 
 def contact_query_factory(): 
     return Contact.query.filter_by(user_id=current_user.id).order_by(Contact.name)
 
 class AddContactToProjectForm(FlaskForm):
-    contact = QuerySelectField('Select Contact to Add', 
-                               query_factory=contact_query_factory, 
-                               get_label=lambda c: f"{c.name} ({c.email})",
-                               allow_blank=False,
-                               validators=[DataRequired()])
+    contact = QuerySelectField('Select Contact to Add', query_factory=contact_query_factory, 
+                               get_label=lambda c: f"{c.name} ({c.email})", allow_blank=False, validators=[DataRequired()])
     submit = SubmitField('Add Contact to Project')
+
+class TextRefinementForm(FlaskForm):
+    text_to_refine_manual = TextAreaField('Text Snippet to Refine', validators=[DataRequired(), Length(min=10, max=2000)])
+    refinement_type_choices = [
+        ('concise', 'Make Concise'),
+        ('alternative_phrasing', 'Suggest Alternatives'),
+        ('simplify_jargon', 'Simplify Jargon')
+    ]
+    refinement_type = SelectField('Refinement Type', choices=refinement_type_choices, validators=[DataRequired()])
+    original_pr_content = HiddenField('Original PR Content') # To provide context
+    submit = SubmitField('Get Refinement Suggestion')
 
 
 with app.app_context():
@@ -118,11 +129,11 @@ with app.app_context():
 
 @app.route('/')
 def home_redirect():
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard_web'))
+    if current_user.is_authenticated: return redirect(url_for('dashboard_web'))
     return redirect(url_for('login_web'))
 
 # --- Web UI Routes ---
+# ... (Authentication, Project, Press Release CRUD, Publication, Contact Management Web UI routes from previous tasks) ...
 @app.route('/ui/register', methods=['GET', 'POST'])
 def register_web():
     if current_user.is_authenticated: return redirect(url_for('dashboard_web'))
@@ -159,43 +170,97 @@ def logout_web():
 @app.route('/ui/dashboard')
 @login_required
 def dashboard_web():
-    projects = Project.query.filter_by(user_id=current_user.id).all()
+    projects = Project.query.filter_by(user_id=current_user.id).order_by(Project.last_modified.desc()).all()
     return render_template('index.html', projects=projects)
 
 @app.route('/ui/projects/new', methods=['GET', 'POST'])
 @login_required
 def create_new_project_web():
-    if request.method == 'POST':
-        project_name = request.form.get('project_name')
-        if not project_name:
-            flash('Project name is required!', 'error')
-            return render_template('create_project.html', title="Create Project")
-        new_project = Project(project_name=project_name, key_messages=request.form.get('key_messages'),
-                              target_audience_keywords=request.form.get('target_audience_keywords'), user_id=current_user.id)
+    form = ProjectForm()
+    if form.validate_on_submit():
+        new_project = Project(
+            project_name=form.project_name.data, key_messages=form.key_messages.data,
+            target_audience_keywords=form.target_audience_keywords.data,
+            main_takeaway_input=form.main_takeaway_input.data, primary_audience_input=form.primary_audience_input.data,
+            audience_benefit_input=form.audience_benefit_input.data, differentiator_input=form.differentiator_input.data,
+            desired_outcome_input=form.desired_outcome_input.data, tone=form.tone.data, style=form.style.data,
+            user_id=current_user.id
+        )
         db.session.add(new_project); db.session.commit()
-        flash(f'Project "{project_name}" created successfully!', 'success')
-        return redirect(url_for('dashboard_web'))
-    return render_template('create_project.html', title="Create Project")
+        flash(f'Project "{new_project.project_name}" created successfully!', 'success')
+        return redirect(url_for('project_detail_web', project_id=new_project.id))
+    return render_template('create_project.html', title="Create New Project", form=form)
+
+@app.route('/ui/projects/<int:project_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_project_web(project_id):
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    form = ProjectForm(obj=project) 
+    if form.validate_on_submit():
+        form.populate_obj(project) # Updates project object with form data
+        # project.last_modified = datetime.utcnow() # Handled by onupdate in model
+        db.session.commit()
+        flash(f'Project "{project.project_name}" updated successfully!', 'success')
+        return redirect(url_for('project_detail_web', project_id=project.id))
+    return render_template('edit_project.html', title=f"Edit Project: {project.project_name}", form=form, project=project)
 
 @app.route('/ui/projects/<int:project_id>')
 @login_required
 def project_detail_web(project_id):
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     add_contact_form = AddContactToProjectForm()
-    # Dynamically set the query for the contact field, excluding already added contacts
     existing_contact_ids = {contact.id for contact in project.target_contacts}
-    add_contact_form.contact.query = Contact.query.filter(
-        Contact.user_id == current_user.id,
-        ~Contact.id.in_(existing_contact_ids)
-    ).order_by(Contact.name)
-    return render_template('project_detail.html', project=project, title=project.project_name, add_contact_form=add_contact_form)
+    add_contact_form.contact.query = Contact.query.filter(Contact.user_id == current_user.id, ~Contact.id.in_(existing_contact_ids)).order_by(Contact.name)
+    story_form_data = {
+        'main_takeaway_input': project.main_takeaway_input, 'primary_audience_input': project.primary_audience_input,
+        'audience_benefit_input': project.audience_benefit_input, 'differentiator_input': project.differentiator_input,
+        'desired_outcome_input': project.desired_outcome_input
+    }
+    story_clarification_form = StoryClarificationForm(data=story_form_data)
+    return render_template('project_detail.html', project=project, title=project.project_name, 
+                           add_contact_form=add_contact_form, story_clarification_form=story_clarification_form,
+                           tone_choices=dict(TONE_CHOICES), style_choices=dict(STYLE_CHOICES))
+
+@app.route('/ui/projects/<int:project_id>/clarify_story_web', methods=['POST'])
+@login_required
+def clarify_story_project_web(project_id):
+    project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
+    form = StoryClarificationForm() 
+    if form.validate_on_submit(): 
+        story_elements = {
+            'main_takeaway': form.main_takeaway_input.data, 'primary_audience': form.primary_audience_input.data,
+            'audience_benefit': form.audience_benefit_input.data, 'differentiator': form.differentiator_input.data,
+            'desired_outcome': form.desired_outcome_input.data
+        }
+        project.main_takeaway_input = form.main_takeaway_input.data
+        project.primary_audience_input = form.primary_audience_input.data
+        project.audience_benefit_input = form.audience_benefit_input.data
+        project.differentiator_input = form.differentiator_input.data
+        project.desired_outcome_input = form.desired_outcome_input.data
+        clarified_brief = clarify_story_with_gemini(story_elements)
+        if clarified_brief.startswith("Error:") or clarified_brief.startswith("ERROR:"):
+            flash(f"Failed to generate Core Narrative Brief: {clarified_brief}", 'danger')
+        else:
+            project.core_narrative_brief = clarified_brief
+            flash("Core Narrative Brief generated/updated successfully!", 'success')
+        db.session.commit()
+    else:
+        for field, errors in form.errors.items():
+            for error in errors: flash(f"Error in '{getattr(form, field).label.text}': {error}", 'danger')
+    return redirect(url_for('project_detail_web', project_id=project.id))
 
 @app.route('/ui/projects/<int:project_id>/generate', methods=['POST'])
 @login_required
 def generate_press_release_web(project_id):
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
-    prompt = f"Generate a compelling press release for project '{project.project_name}'. Key messages: '{project.key_messages}'. Target audience: '{project.target_audience_keywords}'."
-    generated_content = generate_text_with_gemini(prompt)
+    project_data_for_ai = {
+        'project_name': project.project_name, 'core_narrative_brief': project.core_narrative_brief,
+        'main_takeaway_input': project.main_takeaway_input, 'primary_audience_input': project.primary_audience_input,
+        'audience_benefit_input': project.audience_benefit_input, 'differentiator_input': project.differentiator_input,
+        'desired_outcome_input': project.desired_outcome_input, 'key_messages': project.key_messages,
+        'target_audience_keywords': project.target_audience_keywords, 'tone': project.tone, 'style': project.style
+    }
+    generated_content = generate_text_with_gemini(project_data_for_ai)
     status = "draft_from_ai" if not generated_content.startswith("Error:") else "generation_failed"
     new_pr = PressRelease(project_id=project.id, status=status, generated_content=generated_content)
     db.session.add(new_pr); db.session.commit()
@@ -203,12 +268,22 @@ def generate_press_release_web(project_id):
     flash(flash_msg, "success" if status == "draft_from_ai" else "danger")
     return redirect(url_for('project_detail_web', project_id=project.id))
 
-@app.route('/ui/press_releases/<int:pr_id>')
+@app.route('/ui/press_releases/<int:pr_id>', methods=['GET']) # Added refinement_suggestion parameter
 @login_required
-def view_press_release_web(pr_id):
-    pr = PressRelease.query.get_or_404(pr_id)
-    if pr.project.user_id != current_user.id: return redirect(url_for('dashboard_web')) # Basic auth check
-    return render_template('view_press_release.html', press_release=pr, project=pr.project, title=f"View PR: {pr.id}")
+def view_press_release_web(pr_id, refinement_suggestion=None):
+    press_release = PressRelease.query.get_or_404(pr_id)
+    if press_release.project.user_id != current_user.id: return redirect(url_for('dashboard_web')) 
+    
+    # Initialize the form here to pass to the template
+    refinement_form = TextRefinementForm(original_pr_content=press_release.generated_content)
+    
+    # If a suggestion is passed (e.g. after a POST to refine_text_action_web), use it
+    # This comes from the refine_text_action_web route re-rendering this template.
+    # Note: 'refinement_suggestion' is passed directly by `refine_text_action_web` when re-rendering.
+    
+    return render_template('view_press_release.html', press_release=press_release, project=press_release.project, 
+                           title=f"View PR: {press_release.id}", refinement_form=refinement_form, 
+                           refinement_suggestion=request.args.get('refinement_suggestion', None)) # Or passed directly
 
 @app.route('/ui/press_releases/<int:pr_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -233,7 +308,42 @@ def delete_press_release_web(pr_id):
     flash(f'PR (ID: {pr_id}) deleted.', 'success')
     return redirect(url_for('project_detail_web', project_id=project_id))
 
-# --- Publication & Contact Management Web UI Routes ---
+@app.route('/ui/press_releases/<int:pr_id>/refine_text_action', methods=['POST'])
+@login_required
+def refine_text_action_web(pr_id):
+    press_release = PressRelease.query.get_or_404(pr_id)
+    project = Project.query.filter_by(id=press_release.project_id, user_id=current_user.id).first_or_404() # Verify ownership
+
+    form = TextRefinementForm() # Process this form
+    refinement_suggestion = None
+
+    if form.validate_on_submit():
+        text_to_refine = form.text_to_refine_manual.data
+        refinement_type = form.refinement_type.data
+        original_context = form.original_pr_content.data # This is the full PR text from hidden field
+
+        refinement_suggestion = refine_text_with_gemini(text_to_refine, refinement_type, original_context)
+        
+        if refinement_suggestion.startswith("Error:") or refinement_suggestion.startswith("ERROR:"):
+            flash(f"AI Refinement Error: {refinement_suggestion}", 'danger')
+            refinement_suggestion = None # Don't show error as a suggestion
+        else:
+            flash("AI refinement suggestion received.", 'info')
+    else: # Form validation failed
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"Error in '{getattr(form, field).label.text}': {error}", 'danger')
+    
+    # Re-render the view page, passing the suggestion (or None)
+    # The refinement_form needs to be re-initialized for the template context
+    # if we want to preserve its state on re-render, but for now, a new one is fine.
+    new_refinement_form = TextRefinementForm(original_pr_content=press_release.generated_content)
+    return render_template('view_press_release.html', press_release=press_release, project=project,
+                           title=f"View PR: {press_release.id}", refinement_form=new_refinement_form,
+                           refinement_suggestion=refinement_suggestion)
+
+
+# ... (Publication and Contact Web UI routes are fine) ...
 @app.route('/ui/publications', methods=['GET', 'POST'])
 @login_required
 def publications_web():
@@ -251,22 +361,19 @@ def publications_web():
 @login_required
 def contacts_web():
     form = ContactForm()
-    # Dynamically set the query for the publication field
     form.publication.query = Publication.query.filter_by(user_id=current_user.id).order_by(Publication.name)
-    
     if form.validate_on_submit():
-        publication_instance = form.publication.data # This is the Publication object from QuerySelectField
+        publication_instance = form.publication.data
         new_contact = Contact(name=form.name.data, email=form.email.data, role=form.role.data,
                               notes=form.notes.data, user_id=current_user.id,
                               publication_id=publication_instance.id if publication_instance else None)
         try:
             db.session.add(new_contact); db.session.commit()
             flash(f"Contact '{new_contact.name}' created successfully!", 'success')
-        except IntegrityError:
+        except IntegrityError: 
             db.session.rollback()
-            flash(f"Error: Email '{new_contact.email}' already exists. Could not create contact.", 'danger')
+            flash(f"Error: Email '{new_contact.email}' already exists globally. Could not create contact.", 'danger')
         return redirect(url_for('contacts_web'))
-        
     contacts = Contact.query.filter_by(user_id=current_user.id).order_by(Contact.name).all()
     return render_template('contacts.html', contacts=contacts, form=form, title="My Contacts")
 
@@ -274,17 +381,11 @@ def contacts_web():
 @login_required
 def project_add_contact_web(project_id):
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
-    form = AddContactToProjectForm() # Create an instance of the form to validate
-    
-    # Dynamically set the query for the contact field for validation purposes
+    form = AddContactToProjectForm() 
     existing_contact_ids = {contact.id for contact in project.target_contacts}
-    form.contact.query = Contact.query.filter(
-        Contact.user_id == current_user.id,
-        ~Contact.id.in_(existing_contact_ids) # Exclude contacts already in the project for selection
-    ).order_by(Contact.name)
-
+    form.contact.query = Contact.query.filter( Contact.user_id == current_user.id, ~Contact.id.in_(existing_contact_ids) ).order_by(Contact.name)
     if form.validate_on_submit():
-        contact_to_add = form.contact.data # This is the Contact object from QuerySelectField
+        contact_to_add = form.contact.data 
         if contact_to_add not in project.target_contacts:
             project.target_contacts.append(contact_to_add)
             db.session.commit()
@@ -292,10 +393,8 @@ def project_add_contact_web(project_id):
         else:
             flash(f"Contact '{contact_to_add.name}' is already in project '{project.project_name}'.", 'info')
     else:
-        # Handle form validation errors if any (though less likely for a single select field if choices are valid)
         for field, errors in form.errors.items():
-            for error in errors:
-                flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
+            for error in errors: flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
     return redirect(url_for('project_detail_web', project_id=project.id))
 
 @app.route('/ui/projects/<int:project_id>/remove_contact/<int:contact_id>', methods=['POST'])
@@ -303,7 +402,6 @@ def project_add_contact_web(project_id):
 def project_remove_contact_web(project_id, contact_id):
     project = Project.query.filter_by(id=project_id, user_id=current_user.id).first_or_404()
     contact_to_remove = Contact.query.filter_by(id=contact_id, user_id=current_user.id).first_or_404()
-
     if contact_to_remove in project.target_contacts:
         project.target_contacts.remove(contact_to_remove)
         db.session.commit()
@@ -312,10 +410,39 @@ def project_remove_contact_web(project_id, contact_id):
         flash(f"Contact '{contact_to_remove.name}' was not found in project '{project.project_name}'.", 'warning')
     return redirect(url_for('project_detail_web', project_id=project.id))
 
-
 # --- API Endpoints ---
-# (Previously defined API endpoints for projects, press releases, publications, contacts, project-contact associations)
-# ... (These are correctly defined in the previous turn's app.py, so no change needed here) ...
+# ... (All API Endpoints from previous tasks are assumed to be here and correct) ...
+# ... (Adding the new API endpoint for text refinement below) ...
+
+@app.route('/api/press_releases/<int:pr_id>/refine_text_selection', methods=['POST'])
+@login_required
+def refine_text_selection_api(pr_id):
+    press_release = PressRelease.query.get_or_404(pr_id)
+    # Verify user ownership through the parent project
+    project = Project.query.filter_by(id=press_release.project_id, user_id=current_user.id).first_or_404()
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid JSON payload"}), 400
+
+    selected_text = data.get('selected_text')
+    refinement_type = data.get('refinement_type')
+    original_content = data.get('original_content') # Optional, full PR content for context
+
+    if not selected_text or not refinement_type:
+        return jsonify({"error": "Missing 'selected_text' or 'refinement_type'"}), 400
+    
+    allowed_refinement_types = ['concise', 'alternative_phrasing', 'simplify_jargon']
+    if refinement_type not in allowed_refinement_types:
+        return jsonify({"error": f"Invalid 'refinement_type'. Must be one of: {', '.join(allowed_refinement_types)}"}), 400
+
+    suggestion = refine_text_with_gemini(selected_text, refinement_type, original_content)
+
+    if suggestion.startswith("Error:") or suggestion.startswith("ERROR:"):
+        return jsonify({"error": "AI refinement service failed", "details": suggestion}), 500
+        
+    return jsonify({"suggestion": suggestion}), 200
+
 
 if __name__ == '__main__':
     app.run(debug=True)

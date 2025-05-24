@@ -16,12 +16,20 @@
         a { color: #007bff; text-decoration: none; }
         a:hover { text-decoration: underline; }
         .project-list { list-style: none; padding: 0; }
-        .project-list li { margin-bottom: 10px; padding: 10px; border: 1px solid #eee; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .project-list li { 
+            margin-bottom: 10px; padding: 10px; border: 1px solid #eee; border-radius: 4px; 
+            display: flex; justify-content: space-between; align-items: center; 
+        }
+        .project-actions a { margin-left: 10px; font-size: 0.9em; }
         .actions { margin-bottom: 20px; }
         .no-projects { color: #777; }
         .alert { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
         .alert-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .alert-info { background-color: #e7f3fe; color: #0c5460; border: 1px solid #b8daff; }
+        .btn-create { background-color: #007bff; color: white; padding: 8px 12px; border-radius: 4px; text-decoration: none; } 
+        .btn-create:hover{background-color: #0056b3;}
+        .edit-link { background-color: #ffc107; color: #333; padding: 4px 8px; border-radius: 3px; text-decoration: none; }
+        .edit-link:hover { background-color: #e0a800; }
     </style>
 </head>
 <body>
@@ -59,15 +67,19 @@
         {% if current_user.is_authenticated %}
             <div class="actions">
                 <a href="{{ url_for('create_new_project_web') }}" class="btn-create">Create New Project</a>
-                 <style>.btn-create { background-color: #007bff; color: white; padding: 8px 12px; border-radius: 4px; text-decoration: none; } .btn-create:hover{background-color: #0056b3;}</style>
             </div>
 
             {% if projects %}
                 <ul class="project-list">
                     {% for project in projects %}
                         <li>
-                            <a href="{{ url_for('project_detail_web', project_id=project.id) }}">{{ project.project_name }}</a>
-                            <span>(Author: {{ project.author.username }})</span>
+                            <div>
+                                <a href="{{ url_for('project_detail_web', project_id=project.id) }}">{{ project.project_name }}</a>
+                                <br><small>(Author: {{ project.author.username }}, Last Modified: {{ project.last_modified.strftime('%Y-%m-%d %H:%M') if project.last_modified else 'N/A' }})</small>
+                            </div>
+                            <div class="project-actions">
+                                <a href="{{ url_for('edit_project_web', project_id=project.id) }}" class="edit-link">Edit</a>
+                            </div>
                         </li>
                     {% endfor %}
                 </ul>

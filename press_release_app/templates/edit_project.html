@@ -22,7 +22,7 @@
         }
         textarea { min-height: 80px; }
         .btn {
-            background-color: #007bff;
+            background-color: #28a745; /* Green for save/update */
             color: white;
             padding: 10px 15px;
             border: none;
@@ -30,7 +30,7 @@
             cursor: pointer;
             font-size: 16px;
         }
-        .btn:hover { background-color: #0056b3; }
+        .btn:hover { background-color: #218838; }
         .alert { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
         .alert-danger { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         .errors { list-style: none; padding: 0; margin: 5px 0 0 0; }
@@ -63,16 +63,16 @@
             {% endif %}
         {% endwith %}
 
-        <form method="POST" action="{{ url_for('create_new_project_web') }}">
+        <form method="POST" action="{{ url_for('edit_project_web', project_id=project.id) }}">
             {{ form.hidden_tag() }}
             
             <h2 class="section-title">Basic Project Information</h2>
             <div class="form-group">
                 {{ form.project_name.label }}
-                {{ form.project_name(class="form-control", placeholder="e.g., Q4 Product Launch") }}
+                {{ form.project_name(class="form-control") }}
                 {% if form.project_name.errors %}<ul class="errors">{% for error in form.project_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
             </div>
-            
+
             <div class="form-group">
                 {{ form.tone.label }}
                 {{ form.tone(class="form-control") }}
@@ -83,41 +83,41 @@
                 {{ form.style(class="form-control") }}
                 {% if form.style.errors %}<ul class="errors">{% for error in form.style.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
             </div>
-
-            <h2 class="section-title">Content Inputs</h2>
-            <p><small>Provide details for AI-driven "Core Narrative Brief" generation, or provide "Key Messages" and "Target Audience Keywords" for direct press release generation.</small></p>
             
+            <h2 class="section-title">Content Inputs</h2>
+            <p><small>Update details for AI-driven "Core Narrative Brief" generation, or "Key Messages" and "Target Audience Keywords" for direct press release generation.</small></p>
+
             <div class="form-group">
                 {{ form.main_takeaway_input.label }} (For Story Brief)
-                {{ form.main_takeaway_input(class="form-control", rows="2", placeholder="e.g., The single most important message.") }}
+                {{ form.main_takeaway_input(class="form-control", rows="2") }}
             </div>
             <div class="form-group">
                 {{ form.primary_audience_input.label }} (For Story Brief)
-                {{ form.primary_audience_input(class="form-control", placeholder="e.g., Developers, existing customers, potential investors.") }}
+                {{ form.primary_audience_input(class="form-control") }}
             </div>
             <div class="form-group">
                 {{ form.audience_benefit_input.label }} (For Story Brief)
-                {{ form.audience_benefit_input(class="form-control", rows="2", placeholder="e.g., How does this news improve their lives or work?") }}
+                {{ form.audience_benefit_input(class="form-control", rows="2") }}
             </div>
             <div class="form-group">
                 {{ form.differentiator_input.label }} (For Story Brief)
-                {{ form.differentiator_input(class="form-control", rows="2", placeholder="e.g., What makes this unique compared to alternatives?") }}
+                {{ form.differentiator_input(class="form-control", rows="2") }}
             </div>
             <div class="form-group">
                 {{ form.desired_outcome_input.label }} (For Story Brief)
-                {{ form.desired_outcome_input(class="form-control", placeholder="e.g., Drive sign-ups, increase awareness of X, secure media coverage in Y.") }}
+                {{ form.desired_outcome_input(class="form-control") }}
             </div>
-
+            
             <hr style="margin: 20px 0;">
 
             <div class="form-group">
                 {{ form.key_messages.label }} (Legacy - if Story Brief inputs are not used)
-                {{ form.key_messages(class="form-control", rows="3", placeholder="e.g., Main points, unique selling propositions...") }}
+                {{ form.key_messages(class="form-control", rows="3") }}
                 {% if form.key_messages.errors %}<ul class="errors">{% for error in form.key_messages.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
             </div>
             <div class="form-group">
                 {{ form.target_audience_keywords.label }} (Legacy - if Story Brief inputs are not used)
-                {{ form.target_audience_keywords(class="form-control", rows="2", placeholder="e.g., Tech enthusiasts, industry analysts, local community...") }}
+                {{ form.target_audience_keywords(class="form-control", rows="2") }}
                 {% if form.target_audience_keywords.errors %}<ul class="errors">{% for error in form.target_audience_keywords.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
             </div>
 
@@ -125,7 +125,10 @@
                 {{ form.submit(class="btn") }}
             </div>
         </form>
-        <p style="text-align: center; margin-top: 20px;"><a href="{{ url_for('dashboard_web') }}">Back to Dashboard</a></p>
+        <p style="text-align: center; margin-top: 20px;">
+            <a href="{{ url_for('project_detail_web', project_id=project.id) }}">Cancel and Back to Project Details</a><br>
+            <a href="{{ url_for('dashboard_web') }}">Back to Dashboard</a>
+        </p>
     </div>
 </body>
 </html>
